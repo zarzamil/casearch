@@ -443,12 +443,16 @@ export interface Matter {
 
 export interface ChronologyCandidate {
   id: string; // e.g. 'CC-01'
-  date_and_time: string;
-  date_type: DateType;
-  event_description: string;
+  exhibit_id?: string;
   supporting_exhibit: string;
   supporting_page: number | string;
+  page_number?: number;
   filename: string;
+  date_and_time: string;
+  date_type: DateType;
+  proposed_fact?: string;
+  event_description: string;
+  supporting_passage?: string;
   extracted_text: string;
   extraction_status: string;
   contradicting_evidence: string[];
@@ -458,10 +462,16 @@ export interface ChronologyCandidate {
   possible_procedural_significance: string;
   uncertainty: string;
   authentication_status: 'UNVERIFIED';
+  acceptance_status: 'PENDING_HUMAN_REVIEW';
 }
 
 export interface FinancialCandidate {
   id: string; // e.g. 'FC-01'
+  exhibit_id?: string;
+  supporting_exhibit: string;
+  supporting_page: number | string;
+  page_number?: number;
+  filename: string;
   category:
     | 'amount_claimed'
     | 'amount_awarded'
@@ -478,9 +488,6 @@ export interface FinancialCandidate {
   amount: number;
   currency: string;
   date: string;
-  supporting_exhibit: string;
-  supporting_page: number | string;
-  filename: string;
   payer: string;
   payee: string;
   reference_or_transaction_number: string;
@@ -491,15 +498,24 @@ export interface FinancialCandidate {
     | 'PROPOSED_FAILED'
     | 'PROPOSED_UNVERIFIED'
     | 'PROPOSED_DISPUTED';
+  proposed_fact?: string;
   source_text: string;
+  supporting_passage?: string;
   extraction_status: string;
   confidence: ConfidenceLevel;
   uncertainty: string;
   authentication_status: 'UNVERIFIED';
+  acceptance_status: 'PENDING_HUMAN_REVIEW';
 }
 
 export interface ContradictionCandidate {
   id: string; // e.g. 'K-01'
+  exhibit_id?: string;
+  page_number?: number;
+  filename?: string;
+  supporting_passage?: string;
+  proposed_fact?: string;
+  extraction_status?: string;
   proposition_a: string;
   source_a: string; // e.g. 'EX-REAL-05, Page 1'
   proposition_b: string;
@@ -514,4 +530,5 @@ export interface ContradictionCandidate {
   extracted_text_b: string;
   confidence: ConfidenceLevel;
   uncertainty: string;
+  acceptance_status: 'PENDING_HUMAN_REVIEW';
 }

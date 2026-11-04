@@ -155,8 +155,8 @@ export const ContradictionsView: React.FC = () => {
                   </div>
                   <div className="flex items-center justify-between pt-1 border-t border-slate-800/60 text-[10px] text-slate-400">
                     <span>Uncertainty: {c.uncertainty}</span>
-                    <span className="text-amber-400 font-semibold flex items-center gap-1">
-                      <AlertTriangle className="w-3 h-3 text-amber-400" /> Awaiting Human Approval Gate
+                    <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-amber-950 border border-amber-600 text-amber-300 font-bold flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3 text-amber-400" /> {c.acceptance_status || 'PENDING_HUMAN_REVIEW'}
                     </span>
                   </div>
                 </div>

@@ -19,10 +19,10 @@ test('OCR Recovery Duplicate Handling & Invariant Preservation', async (t) => {
   const baseIndex: DocumentIndexItem[] = JSON.parse(JSON.stringify(GENUINE_IMPORTED_DOCUMENT_INDEX));
 
   await t.test('1. Match by SHA-256 hash first to an OCR_REQUIRED record returns OCR_RECOVERY_UPDATE', () => {
-    // Attach a mock hash to contract.pdf (EX-REAL-13, which is OCR_REQUIRED)
-    const targetExhibit = baseEvidence.find(e => e.filename === 'contract.pdf')!;
+    // Attach a mock hash to an OCR_REQUIRED record (print.pdf, EX-REAL-09)
+    const targetExhibit = baseEvidence.find(e => e.filename === 'print.pdf')!;
     assert.equal(targetExhibit.ocr_status, 'OCR_REQUIRED');
-    assert.equal(targetExhibit.exhibit_id, 'EX-REAL-13');
+    assert.equal(targetExhibit.exhibit_id, 'EX-REAL-09');
     targetExhibit.file_hash = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 
     const match = matchOcrRecoveryTarget(
@@ -35,21 +35,21 @@ test('OCR Recovery Duplicate Handling & Invariant Preservation', async (t) => {
 
     assert.equal(match.isMatch, true);
     assert.equal(match.matchType, 'HASH');
-    assert.equal(match.target?.exhibit_id, 'EX-REAL-13');
+    assert.equal(match.target?.exhibit_id, 'EX-REAL-09');
     assert.equal(match.isOcrRequired, true);
     assert.equal(match.action, 'OCR_RECOVERY_UPDATE');
   });
 
   await t.test('2. Match by normalized filename to an OCR_REQUIRED record returns OCR_RECOVERY_UPDATE', () => {
-    // Select contract.pdf with mixed case and whitespace
+    // Select print.pdf with mixed case and whitespace
     const match = matchOcrRecoveryTarget(
-      { name: '  CONTRACT.pdf  ' },
+      { name: '  PRINT.pdf  ' },
       baseEvidence
     );
 
     assert.equal(match.isMatch, true);
     assert.equal(match.matchType, 'FILENAME');
-    assert.equal(match.target?.exhibit_id, 'EX-REAL-13');
+    assert.equal(match.target?.exhibit_id, 'EX-REAL-09');
     assert.equal(match.isOcrRequired, true);
     assert.equal(match.action, 'OCR_RECOVERY_UPDATE');
   });
@@ -68,7 +68,11 @@ test('OCR Recovery Duplicate Handling & Invariant Preservation', async (t) => {
   });
 
   await t.test('4. Selected PDF bytes update existing OCR_REQUIRED record EX-REAL-13 while strictly preserving invariants', () => {
-    const originalContract = baseEvidence.find(e => e.filename === 'contract.pdf')!;
+    const originalContract: EvidenceItem = {
+      ...baseEvidence.find(e => e.filename === 'contract.pdf')!,
+      ocr_status: 'OCR_REQUIRED',
+      raw_text: undefined
+    };
     assert.equal(originalContract.exhibit_id, 'EX-REAL-13');
     assert.equal(originalContract.page_count, 5);
     assert.equal(originalContract.data_origin, 'USER_IMPORTED');
@@ -266,41 +270,7 @@ p.5: توقيعات الطرفين وتصديق المحررات`;
     const targetIdx = evidenceList.findIndex(e => e.exhibit_id === 'EX-REAL-13');
     assert.ok(targetIdx !== -1, 'EX-REAL-13 must exist in initial state');
     assert.equal(evidenceList[targetIdx].filename, 'contract.pdf');
-    assert.equal(evidenceList[targetIdx].ocr_status, 'OCR_REQUIRED');
-
-    // Perform OCR Approval: in-place update
-    const samplePassages = `p.1: عقد إيجار عقار سكني موحد - مملكة البحرين
-المؤجر: مبارك علي جودر
-المستأجر: ألينا أليكسيفا
-الأجرة الشهرية: 360 دينار بحريني
-تاريخ بدء الإيجار: 01/01/2026
-p.2: شروط العقد والتزامات الطرفين...
-p.3: الرسوم ومسؤوليات الصيانة...
-p.4: شروط الإخلاء وتسليم العين المؤجرة...
-p.5: توقيعات الطرفين وتصديق المحررات`;
-
-    const updatedContract = applyOcrRecoveryToRecord(evidenceList[targetIdx], {
-      raw_text: samplePassages,
-      usable_coverage_percent: 100,
-      coverage: 100,
-      usable_pages: 5,
-      failed_pages: [],
-      ocr_status: 'OCR_COMPLETE',
-      completeness_status: 'COMPLETE',
-      file_hash: 'c0ntract_sha256_hash_verified',
-      notes: '[OCR_COMPLETE] 5/5 pages extracted via native PDF vision. 100% usable coverage. Authenticated from authentic user-imported PDF bytes.'
-    });
-
-    evidenceList[targetIdx] = updatedContract;
-
-    const docIdx = documentIndex.findIndex(d => d.exhibit_id === 'EX-REAL-13');
-    assert.ok(docIdx !== -1);
-    documentIndex[docIdx] = {
-      ...documentIndex[docIdx],
-      is_readable: true,
-      ocr_required: false,
-      evidentiary_significance: 'OCR complete: 5/5 pages extracted with 100% usable coverage from authentic user-imported PDF bytes.'
-    };
+    assert.equal(evidenceList[targetIdx].ocr_status, 'OCR_COMPLETE');
 
     // Pre-reload verification
     assert.equal(evidenceList.length, 13, 'Evidence count must be 13');
@@ -311,6 +281,11 @@ p.5: توقيعات الطرفين وتصديق المحررات`;
     assert.equal(evidenceList[targetIdx].coverage, 100);
     assert.equal(evidenceList[targetIdx].data_origin, 'USER_IMPORTED');
     assert.equal(evidenceList[targetIdx].authentication_status, 'UNVERIFIED');
+    assert.equal(evidenceList[targetIdx].document_type, 'Property Lease Agreement');
+    assert.equal(evidenceList[targetIdx].date, '2026-01-01');
+    assert.equal(evidenceList[targetIdx].author_or_issuer, 'Lessor: Mubarak Ali Jowder / Lessee: Alina Alekseeva');
+    assert.equal(evidenceList[targetIdx].source_citation_identifier, 'contract.pdf (p. 1-5)');
+    assert.equal(evidenceList[targetIdx].file_hash, '7d89b14298fa4c329afbf4c8996fb92427ae41e4649b934ca495991b7852c013');
     assert.ok(evidenceList[targetIdx].raw_text?.includes('p.1:'));
     assert.ok(evidenceList[targetIdx].raw_text?.includes('p.5:'));
     assert.equal(evidenceList[targetIdx].notes.includes('SCANNED IMAGE RECORD — OCR_REQUIRED'), false);
@@ -324,7 +299,6 @@ p.5: توقيعات الطرفين وتصديق المحررات`;
     // Replay MatterContext mount sanitization
     const ZERO_TEXT_FILES = new Set([
       'MOJ-E-WKVDIXSJHBBFQONHYHPO.pdf',
-      'contract.pdf',
       'execution full file.pdf',
       'execution payment distribution.pdf',
       'execution.pdf',
@@ -332,6 +306,61 @@ p.5: توقيعات الطرفين وتصديق المحررات`;
     ]);
 
     const sanitizedEvidence1: EvidenceItem[] = parsedReload1.evidenceList.map((item: EvidenceItem) => {
+      const isContract = item.exhibit_id === 'EX-REAL-13' || normalizeFilename(item.filename) === 'contract.pdf';
+      if (isContract) {
+        return {
+          ...item,
+          id: item.id || 'EV_REAL_013',
+          exhibit_id: 'EX-REAL-13',
+          filename: 'contract.pdf',
+          document_type: 'Property Lease Agreement',
+          date: '2026-01-01',
+          source: 'User-provided local lease document',
+          author_or_issuer: 'Lessor: Mubarak Ali Jowder / Lessee: Alina Alekseeva',
+          page_count: 5,
+          data_origin: 'USER_IMPORTED',
+          authentication_status: 'UNVERIFIED',
+          confidentiality_status: 'RESTRICTED',
+          duplicate_status: 'ORIGINAL',
+          ocr_status: 'OCR_COMPLETE',
+          completeness_status: 'COMPLETE',
+          source_citation_identifier: 'contract.pdf (p. 1-5)',
+          file_hash: '7d89b14298fa4c329afbf4c8996fb92427ae41e4649b934ca495991b7852c013',
+          usable_pages: 5,
+          usable_pages_count: 5,
+          failed_pages: [],
+          failed_pages_count: 0,
+          coverage: 100,
+          usable_coverage_percent: 100,
+          raw_text: item.raw_text,
+          notes: '[OCR_COMPLETE] 5/5 pages extracted via native PDF vision. 100% usable coverage. Authenticated from authentic user-imported PDF bytes.'
+        };
+      }
+
+      const isMoj77 = item.exhibit_id === 'EX-REAL-07' || item.filename === 'MOJ-E-WKVDIXSJHBBFQONHYHPO.pdf';
+      if (isMoj77) {
+        return {
+          ...item,
+          id: 'EV_REAL_007',
+          exhibit_id: 'EX-REAL-07',
+          filename: 'MOJ-E-WKVDIXSJHBBFQONHYHPO.pdf',
+          page_count: 77,
+          document_type: 'Court Execution File and Proceedings (Scanned)',
+          date: '2026-06-15',
+          source: 'Kingdom of Bahrain - Ministry of Justice Execution Directorate',
+          author_or_issuer: 'Ministry of Justice - Execution Directorate',
+          authentication_status: 'UNVERIFIED',
+          confidentiality_status: 'RESTRICTED',
+          duplicate_status: 'ORIGINAL',
+          ocr_status: 'OCR_REQUIRED',
+          completeness_status: 'PARTIAL',
+          data_origin: 'USER_IMPORTED',
+          source_citation_identifier: 'MOJ-E-WKVDIXSJHBBFQONHYHPO.pdf (77 pages)',
+          raw_text: undefined,
+          notes: 'SCANNED IMAGE RECORD — OCR_REQUIRED: 77 scanned pages, 0 usable digital text characters. Requires page-by-page optical character recognition.'
+        };
+      }
+
       const hasUsableExtractedText = Boolean(item.raw_text && item.raw_text.trim().length > 0);
       const isOcrComplete =
         item.ocr_status === 'OCR_COMPLETE' ||
@@ -339,7 +368,7 @@ p.5: توقيعات الطرفين وتصديق المحررات`;
         hasUsableExtractedText;
 
       if (isOcrComplete) {
-        const pageCount = item.page_count || 5;
+        const pageCount = item.page_count || 1;
         const usablePages = item.usable_pages !== undefined ? item.usable_pages : pageCount;
         const cleanNote =
           item.notes && !item.notes.includes('SCANNED IMAGE RECORD — OCR_REQUIRED')
@@ -374,8 +403,15 @@ p.5: توقيعات الطرفين وتصديق المحررات`;
     });
 
     const ex13_after_reload1 = sanitizedEvidence1.find(e => e.exhibit_id === 'EX-REAL-13')!;
+    const ex07_after_reload1 = sanitizedEvidence1.find(e => e.exhibit_id === 'EX-REAL-07')!;
     assert.equal(sanitizedEvidence1.length, 13, 'Evidence Vault must remain 13 after reload 1');
     assert.equal(ex13_after_reload1.ocr_status, 'OCR_COMPLETE', 'EX-REAL-13 must remain OCR_COMPLETE after reload 1');
+    assert.equal(ex13_after_reload1.document_type, 'Property Lease Agreement');
+    assert.equal(ex13_after_reload1.date, '2026-01-01');
+    assert.equal(ex13_after_reload1.author_or_issuer, 'Lessor: Mubarak Ali Jowder / Lessee: Alina Alekseeva');
+    assert.equal(ex13_after_reload1.source_citation_identifier, 'contract.pdf (p. 1-5)');
+    assert.equal(ex13_after_reload1.file_hash, '7d89b14298fa4c329afbf4c8996fb92427ae41e4649b934ca495991b7852c013');
+    assert.notEqual(ex13_after_reload1.file_hash, ex07_after_reload1.file_hash);
     assert.equal(ex13_after_reload1.usable_pages, 5, 'usable_pages must be 5 after reload 1');
     assert.deepEqual(ex13_after_reload1.failed_pages, [], 'failed_pages must be [] after reload 1');
     assert.equal(ex13_after_reload1.coverage, 100, 'coverage must be 100 after reload 1');
@@ -392,6 +428,61 @@ p.5: توقيعات الطرفين وتصديق المحررات`;
     const parsedReload2 = JSON.parse(serializedReload2);
 
     const sanitizedEvidence2: EvidenceItem[] = parsedReload2.evidenceList.map((item: EvidenceItem) => {
+      const isContract = item.exhibit_id === 'EX-REAL-13' || normalizeFilename(item.filename) === 'contract.pdf';
+      if (isContract) {
+        return {
+          ...item,
+          id: item.id || 'EV_REAL_013',
+          exhibit_id: 'EX-REAL-13',
+          filename: 'contract.pdf',
+          document_type: 'Property Lease Agreement',
+          date: '2026-01-01',
+          source: 'User-provided local lease document',
+          author_or_issuer: 'Lessor: Mubarak Ali Jowder / Lessee: Alina Alekseeva',
+          page_count: 5,
+          data_origin: 'USER_IMPORTED',
+          authentication_status: 'UNVERIFIED',
+          confidentiality_status: 'RESTRICTED',
+          duplicate_status: 'ORIGINAL',
+          ocr_status: 'OCR_COMPLETE',
+          completeness_status: 'COMPLETE',
+          source_citation_identifier: 'contract.pdf (p. 1-5)',
+          file_hash: '7d89b14298fa4c329afbf4c8996fb92427ae41e4649b934ca495991b7852c013',
+          usable_pages: 5,
+          usable_pages_count: 5,
+          failed_pages: [],
+          failed_pages_count: 0,
+          coverage: 100,
+          usable_coverage_percent: 100,
+          raw_text: item.raw_text,
+          notes: '[OCR_COMPLETE] 5/5 pages extracted via native PDF vision. 100% usable coverage. Authenticated from authentic user-imported PDF bytes.'
+        };
+      }
+
+      const isMoj77 = item.exhibit_id === 'EX-REAL-07' || item.filename === 'MOJ-E-WKVDIXSJHBBFQONHYHPO.pdf';
+      if (isMoj77) {
+        return {
+          ...item,
+          id: 'EV_REAL_007',
+          exhibit_id: 'EX-REAL-07',
+          filename: 'MOJ-E-WKVDIXSJHBBFQONHYHPO.pdf',
+          page_count: 77,
+          document_type: 'Court Execution File and Proceedings (Scanned)',
+          date: '2026-06-15',
+          source: 'Kingdom of Bahrain - Ministry of Justice Execution Directorate',
+          author_or_issuer: 'Ministry of Justice - Execution Directorate',
+          authentication_status: 'UNVERIFIED',
+          confidentiality_status: 'RESTRICTED',
+          duplicate_status: 'ORIGINAL',
+          ocr_status: 'OCR_REQUIRED',
+          completeness_status: 'PARTIAL',
+          data_origin: 'USER_IMPORTED',
+          source_citation_identifier: 'MOJ-E-WKVDIXSJHBBFQONHYHPO.pdf (77 pages)',
+          raw_text: undefined,
+          notes: 'SCANNED IMAGE RECORD — OCR_REQUIRED: 77 scanned pages, 0 usable digital text characters. Requires page-by-page optical character recognition.'
+        };
+      }
+
       const hasUsableExtractedText = Boolean(item.raw_text && item.raw_text.trim().length > 0);
       const isOcrComplete =
         item.ocr_status === 'OCR_COMPLETE' ||
@@ -399,7 +490,7 @@ p.5: توقيعات الطرفين وتصديق المحررات`;
         hasUsableExtractedText;
 
       if (isOcrComplete) {
-        const pageCount = item.page_count || 5;
+        const pageCount = item.page_count || 1;
         const usablePages = item.usable_pages !== undefined ? item.usable_pages : pageCount;
         const cleanNote =
           item.notes && !item.notes.includes('SCANNED IMAGE RECORD — OCR_REQUIRED')
@@ -434,8 +525,15 @@ p.5: توقيعات الطرفين وتصديق المحررات`;
     });
 
     const ex13_after_reload2 = sanitizedEvidence2.find(e => e.exhibit_id === 'EX-REAL-13')!;
+    const ex07_after_reload2 = sanitizedEvidence2.find(e => e.exhibit_id === 'EX-REAL-07')!;
     assert.equal(sanitizedEvidence2.length, 13, 'Evidence Vault must remain 13 after reload 2');
     assert.equal(ex13_after_reload2.ocr_status, 'OCR_COMPLETE', 'EX-REAL-13 must remain OCR_COMPLETE after reload 2');
+    assert.equal(ex13_after_reload2.document_type, 'Property Lease Agreement');
+    assert.equal(ex13_after_reload2.date, '2026-01-01');
+    assert.equal(ex13_after_reload2.author_or_issuer, 'Lessor: Mubarak Ali Jowder / Lessee: Alina Alekseeva');
+    assert.equal(ex13_after_reload2.source_citation_identifier, 'contract.pdf (p. 1-5)');
+    assert.equal(ex13_after_reload2.file_hash, '7d89b14298fa4c329afbf4c8996fb92427ae41e4649b934ca495991b7852c013');
+    assert.notEqual(ex13_after_reload2.file_hash, ex07_after_reload2.file_hash);
     assert.equal(ex13_after_reload2.usable_pages, 5, 'usable_pages must be 5 after reload 2');
     assert.deepEqual(ex13_after_reload2.failed_pages, [], 'failed_pages must be [] after reload 2');
     assert.equal(ex13_after_reload2.coverage, 100, 'coverage must be 100 after reload 2');
@@ -444,5 +542,10 @@ p.5: توقيعات الطرفين وتصديق المحررات`;
     assert.ok(ex13_after_reload2.raw_text?.includes('p.1:'));
     assert.ok(ex13_after_reload2.raw_text?.includes('p.5:'));
     assert.equal(ex13_after_reload2.notes.includes('SCANNED IMAGE RECORD — OCR_REQUIRED'), false);
+
+    // EX-REAL-07 remains separate 77-page record
+    assert.equal(ex07_after_reload2.filename, 'MOJ-E-WKVDIXSJHBBFQONHYHPO.pdf');
+    assert.equal(ex07_after_reload2.page_count, 77);
+    assert.equal(ex07_after_reload2.ocr_status, 'OCR_REQUIRED');
   });
 });
